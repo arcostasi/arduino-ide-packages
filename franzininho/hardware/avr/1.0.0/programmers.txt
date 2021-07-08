@@ -1,0 +1,11 @@
+micronucleusprog.name=Micronucleus
+micronucleusprog.communication=usb
+micronucleusprog.protocol=micronucleus
+micronucleusprog.program.tool={runtime.tools.micronucleus.path}/micronucleus
+micronucleusprog.program.extra_params=-Pusb
+
+pmicronucleusprog.name=Micronucleus (PicSimLab)
+pmicronucleusprog.communication=Socket
+pmicronucleusprog.protocol=pmicronucleus
+pmicronucleusprog.program.tool={runtime.tools.micronucleus.path}/pmicronucleus
+pmicronucleusprog.program.extra_params=-Pusb
