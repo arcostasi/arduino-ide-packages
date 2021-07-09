@@ -206,7 +206,7 @@ void HardwareSerial::begin(long baud)
     use_u2x = false;
   }
 #endif
-  
+
   if (use_u2x) {
     *_ucsra = 1 << _u2x;
     baud_setting = (F_CPU / 4 / baud - 1) / 2;
@@ -228,7 +228,7 @@ void HardwareSerial::end()
 {
   cbi(*_ucsrb, _rxen);
   cbi(*_ucsrb, _txen);
-  cbi(*_ucsrb, _rxcie);  
+  cbi(*_ucsrb, _rxcie);
 }
 
 int HardwareSerial::available(void)

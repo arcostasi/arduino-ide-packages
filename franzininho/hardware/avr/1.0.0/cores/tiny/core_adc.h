@@ -6,17 +6,17 @@
 
   This file is part of Arduino-Tiny.
 
-  Arduino-Tiny is free software: you can redistribute it and/or modify it 
-  under the terms of the GNU Lesser General Public License as published by 
+  Arduino-Tiny is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as published by
   the Free Software Foundation, either version 3 of the License, or (at your
   option) any later version.
 
-  Arduino-Tiny is distributed in the hope that it will be useful, but 
-  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
+  Arduino-Tiny is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
   License for more details.
 
-  You should have received a copy of the GNU Lesser General Public License 
+  You should have received a copy of the GNU Lesser General Public License
   along with Arduino-Tiny.  If not, see <http://www.gnu.org/licenses/>.
 
 ==============================================================================*/
@@ -38,8 +38,8 @@
 #if defined( __AVR_ATtinyX4__ ) || defined( __AVR_ATtinyX5__ )
 
 /*
-  From the '84 and '85 datasheets... By default, the successive approximation 
-  circuitry requires an input clock frequency between 50 kHz and 200 kHz to 
+  From the '84 and '85 datasheets... By default, the successive approximation
+  circuitry requires an input clock frequency between 50 kHz and 200 kHz to
   get maximum resolution.
 */
 #if F_CPU == 16000000
@@ -47,7 +47,7 @@
   #define ADC_ARDUINO_PRESCALER   ADC_Prescaler_Value_128
 #elif F_CPU == 16500000
   // 8 MHz / 64 = 125 KHz
-  #define ADC_ARDUINO_PRESCALER   ADC_Prescaler_Value_128  
+  #define ADC_ARDUINO_PRESCALER   ADC_Prescaler_Value_128
 #elif F_CPU == 8000000
   // 8 MHz / 64 = 125 KHz
   #define ADC_ARDUINO_PRESCALER   ADC_Prescaler_Value_64
@@ -223,8 +223,8 @@ adc_vr_t;
 
 __attribute__((always_inline)) static inline void ADC_SetVoltageReference( adc_vr_t vr )
 {
-  ADMUX = (ADMUX & ~MASK3(REFS1,REFS0,REFS2)) 
-      | (((vr & B011) >> 0) << REFS0) 
+  ADMUX = (ADMUX & ~MASK3(REFS1,REFS0,REFS2))
+      | (((vr & B011) >> 0) << REFS0)
       | (((vr & B100) >> 2) << REFS2);
 }
 

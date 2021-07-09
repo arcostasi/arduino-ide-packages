@@ -6,17 +6,17 @@
 
   This file is part of Arduino-Tiny.
 
-  Arduino-Tiny is free software: you can redistribute it and/or modify it 
-  under the terms of the GNU Lesser General Public License as published by 
+  Arduino-Tiny is free software: you can redistribute it and/or modify it
+  under the terms of the GNU Lesser General Public License as published by
   the Free Software Foundation, either version 3 of the License, or (at your
   option) any later version.
 
-  Arduino-Tiny is distributed in the hope that it will be useful, but 
-  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
+  Arduino-Tiny is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
   License for more details.
 
-  You should have received a copy of the GNU Lesser General Public License 
+  You should have received a copy of the GNU Lesser General Public License
   along with Arduino-Tiny.  If not, see <http://www.gnu.org/licenses/>.
 
 ==============================================================================*/
@@ -33,7 +33,7 @@
 
 
 /*=============================================================================
-  Macros for generating application specific names for the stuff here (like 
+  Macros for generating application specific names for the stuff here (like
   Millis_SetToPowerup as an alias for Timer1_SetToPowerup).
 =============================================================================*/
 
@@ -52,7 +52,7 @@
 
   - The 2313 and X4 Timer1 code is source code compatible (interchangeable).
     It's time to make the Timer1 code reusable.
-    
+
 =============================================================================*/
 
 /*=============================================================================
@@ -187,12 +187,12 @@ __attribute__((always_inline)) static inline void Timer0_SetOutputCompareMatchB(
 __attribute__((always_inline)) static inline void Timer0_EnableOutputCompareInterruptA( void )
 {
   TIMSK |= (1<<OCIE0A);
-} 
+}
 
 __attribute__((always_inline)) static inline void Timer0_EnableOverflowInterrupt( void )
 {
   TIMSK |= (1<<TOIE0);
-} 
+}
 
 __attribute__((always_inline)) static inline timer0_tcnt_t Timer0_GetCount( void )
 {
@@ -347,12 +347,12 @@ __attribute__((always_inline)) static inline void Timer1_SetOutputCompareMatchB(
 __attribute__((always_inline)) static inline void Timer1_EnableOutputCompareInterruptA( void )
 {
   TIMSK |= (1<<OCIE1A);
-} 
+}
 
 __attribute__((always_inline)) static inline void Timer1_EnableOverflowInterrupt( void )
 {
   TIMSK |= (1<<TOIE1);
-} 
+}
 
 __attribute__((always_inline)) static inline timer1_tcnt_t Timer1_GetCount( void )
 {
@@ -504,12 +504,12 @@ __attribute__((always_inline)) static inline void Timer0_SetOutputCompareMatchB(
 __attribute__((always_inline)) static inline void Timer0_EnableOutputCompareInterruptA( void )
 {
   TIMSK0 |= (1<<OCIE0A);
-} 
+}
 
 __attribute__((always_inline)) static inline void Timer0_EnableOverflowInterrupt( void )
 {
   TIMSK0 |= (1<<TOIE0);
-} 
+}
 
 __attribute__((always_inline)) static inline timer0_tcnt_t Timer0_GetCount( void )
 {
@@ -664,12 +664,12 @@ __attribute__((always_inline)) static inline void Timer1_SetOutputCompareMatchB(
 __attribute__((always_inline)) static inline void Timer1_EnableOutputCompareInterruptA( void )
 {
   TIMSK1 |= (1<<OCIE1A);
-} 
+}
 
 __attribute__((always_inline)) static inline void Timer1_EnableOverflowInterrupt( void )
 {
   TIMSK1 |= (1<<TOIE1);
-} 
+}
 
 __attribute__((always_inline)) static inline timer1_tcnt_t Timer1_GetCount( void )
 {
@@ -821,12 +821,12 @@ __attribute__((always_inline)) static inline void Timer0_SetOutputCompareMatchB(
 __attribute__((always_inline)) static inline void Timer0_EnableOutputCompareInterruptA( void )
 {
   TIMSK |= (1<<OCIE0A);
-} 
+}
 
 __attribute__((always_inline)) static inline void Timer0_EnableOverflowInterrupt( void )
 {
   TIMSK |= (1<<TOIE0);
-} 
+}
 
 __attribute__((always_inline)) static inline timer0_tcnt_t Timer0_GetCount( void )
 {
@@ -1017,12 +1017,12 @@ __attribute__((always_inline)) static inline void Timer1_SetOutputCompareMatchB(
 __attribute__((always_inline)) static inline void Timer1_EnableOutputCompareInterruptA( void )
 {
   TIMSK |= (1<<OCIE1A);
-} 
+}
 
 __attribute__((always_inline)) static inline void Timer1_EnableOverflowInterrupt( void )
 {
   TIMSK |= (1<<TOIE1);
-} 
+}
 
 __attribute__((always_inline)) static inline timer1_tcnt_t Timer1_GetCount( void )
 {
@@ -1043,7 +1043,7 @@ __attribute__((always_inline)) static inline uint8_t Timer1_IsOverflowSet( void 
 
 
 /*=============================================================================
-  Aliases for the interrupt service routine vector numbers so the code 
+  Aliases for the interrupt service routine vector numbers so the code
   doesn't have to be riddled with #ifdefs.
 =============================================================================*/
 
