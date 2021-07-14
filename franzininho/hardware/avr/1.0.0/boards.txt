@@ -2,13 +2,12 @@ menu.cpu=Processor
 
 ##############################################################
 
-franzininho-tiny.name=Franzininho DIY (ATtiny85)
+franzininho-tiny.name=Franzininho (ATtiny85)
 franzininho-tiny.build.mcu=attiny85
 franzininho-tiny.build.f_cpu=8000000L
-# board name will be used for macro define
-franzininho-tiny.build.board=attiny
-franzininho-tiny.build.core=pico
-franzininho-tiny.build.variant=tiny8
+franzininho-tiny.build.board=AVR_ATTINYX5
+franzininho-tiny.build.core=tiny
+franzininho-tiny.build.variant=tinyX5
 franzininho-tiny.bootloader.unlock_bits=0xFF
 franzininho-tiny.bootloader.lock_bits=0xFF
 franzininho-tiny.bootloader.extended_fuses=0xFE
@@ -21,10 +20,11 @@ franzininho-tiny.upload.wait_for_upload_port=false
 franzininho-tiny.upload.use_1200bps_touch=false
 franzininho-tiny.upload.disable_flushing=false
 
-franzininho-sim.name=Franzininho DIY (PICSimLab)
+##############################################################
+
+franzininho-sim.name=Franzininho (PICSimLab)
 franzininho-sim.build.mcu=attiny85
 franzininho-sim.build.f_cpu=8000000L
-# board name will be used for macro define
 franzininho-sim.build.board=attiny
 franzininho-sim.build.core=pico
 franzininho-sim.build.variant=tiny8
@@ -36,3 +36,5 @@ franzininho-sim.upload.maximum_data_size=512
 franzininho-sim.upload.wait_for_upload_port=false
 franzininho-sim.upload.use_1200bps_touch=false
 franzininho-sim.upload.disable_flushing=false
+
+##############################################################

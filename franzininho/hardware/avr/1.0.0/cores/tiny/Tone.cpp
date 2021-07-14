@@ -30,151 +30,15 @@ Version Modified By Date     Comments
 0006    D Mellis    09/12/29 Replaced objects with functions
 0007    B Cook      10/05/03 Rewritten to only work with Timer1 and support direct hardware output
 0008    B Cook      10/05/03 Rewritten so the timer can be selected at compile time
+0009  T Carpenter 12/08/06 Rewritten to remove requirement for all the weird timer name creation macros.
+ 0010    Armin Jo    19/06/30 Added 87 and 167 support and corrected # indentations.
 
 *************************************************/
 
-#define DEBUG_TONE 0
-
 #include <avr/interrupt.h>
-#include "core_build_options.h"
-#include "ToneTimer.h"
+#include "Arduino.h"
+#include "wiring_private.h"
 #include "pins_arduino.h"
-#include "wiring.h"
-
-#if (TONETIMER_NUMBER_PRESCALERS != 5) && (TONETIMER_NUMBER_PRESCALERS != 15)
-#error Only five or fifteen prescalers are supported.  Update the code to support the number of actual prescalers.
-#endif
-
-#if TONETIMER_NUMBER_PRESCALERS == 15
-#define TONETIMER_MAXIMUM_DIVISOR  ( (unsigned long)(TONETIMER_(PRESCALER_VALUE_15)) * (1L + (unsigned long)(TONETIMER_(MAXIMUM_OCR))) )
-#endif
-
-#if TONETIMER_NUMBER_PRESCALERS == 5
-#define TONETIMER_MAXIMUM_DIVISOR  ( (unsigned long)(TONETIMER_(PRESCALER_VALUE_5)) * (1L + (unsigned long)(TONETIMER_(MAXIMUM_OCR))) )
-#endif
-
-const unsigned int Tone_Lowest_Frequency = (F_CPU + (2L * TONETIMER_MAXIMUM_DIVISOR - 1L)) / (2L * TONETIMER_MAXIMUM_DIVISOR);
-
-#if (TONETIMER_(MAXIMUM_OCR) == 65535) && (TONETIMER_(PRESCALE_SET) == 1)
-#if F_CPU <= 1000000
-  #define TONE_FREQUENCY_CUTOFF_2  (7)
-  #define TONE_FREQUENCY_CUTOFF_1  (65535)
-#elif F_CPU <= 8000000
-  #define TONE_FREQUENCY_CUTOFF_3  (7)
-  #define TONE_FREQUENCY_CUTOFF_2  (61)
-  #define TONE_FREQUENCY_CUTOFF_1  (65535)
-#elif F_CPU <= 16000000
-  #define TONE_FREQUENCY_CUTOFF_4  (1)
-  #define TONE_FREQUENCY_CUTOFF_3  (15)
-  #define TONE_FREQUENCY_CUTOFF_2  (122)
-  #define TONE_FREQUENCY_CUTOFF_1  (65535)
-#elif F_CPU <= 16500000
-  #define TONE_FREQUENCY_CUTOFF_4  (1)
-  #define TONE_FREQUENCY_CUTOFF_3  (15)
-  #define TONE_FREQUENCY_CUTOFF_2  (122)
-  #define TONE_FREQUENCY_CUTOFF_1  (65535)
-#endif
-#endif
-
-#if (TONETIMER_(MAXIMUM_OCR) == 255) && (TONETIMER_(PRESCALE_SET) == 1)
-#if F_CPU <= 1000000
-  #define TONE_FREQUENCY_CUTOFF_5  (7)
-  #define TONE_FREQUENCY_CUTOFF_4  (30)
-  #define TONE_FREQUENCY_CUTOFF_3  (243)
-  #define TONE_FREQUENCY_CUTOFF_2  (1949)
-  #define TONE_FREQUENCY_CUTOFF_1  (65535)
-#elif F_CPU <= 8000000
-  #define TONE_FREQUENCY_CUTOFF_5  (60)
-  #define TONE_FREQUENCY_CUTOFF_4  (243)
-  #define TONE_FREQUENCY_CUTOFF_3  (1949)
-  #define TONE_FREQUENCY_CUTOFF_2  (15594)
-  #define TONE_FREQUENCY_CUTOFF_1  (65535)
-#elif F_CPU <= 16000000
-  #define TONE_FREQUENCY_CUTOFF_5  (121)
-  #define TONE_FREQUENCY_CUTOFF_4  (487)
-  #define TONE_FREQUENCY_CUTOFF_3  (3898)
-  #define TONE_FREQUENCY_CUTOFF_2  (31189)
-  #define TONE_FREQUENCY_CUTOFF_1  (65535)
-#elif F_CPU <= 16500000
-  #define TONE_FREQUENCY_CUTOFF_5  (121)
-  #define TONE_FREQUENCY_CUTOFF_4  (487)
-  #define TONE_FREQUENCY_CUTOFF_3  (3898)
-  #define TONE_FREQUENCY_CUTOFF_2  (31189)
-  #define TONE_FREQUENCY_CUTOFF_1  (65535)
-#endif
-#endif
-
-#if (TONETIMER_(MAXIMUM_OCR) == 255) && (TONETIMER_(PRESCALE_SET) == 2)
-#if F_CPU <= 1000000
-  #define TONE_FREQUENCY_CUTOFF_12 (1)
-  #define TONE_FREQUENCY_CUTOFF_11 (3)
-  #define TONE_FREQUENCY_CUTOFF_10 (7)
-  #define TONE_FREQUENCY_CUTOFF_9  (15)
-  #define TONE_FREQUENCY_CUTOFF_8  (30)
-  #define TONE_FREQUENCY_CUTOFF_7  (60)
-  #define TONE_FREQUENCY_CUTOFF_6  (121)
-  #define TONE_FREQUENCY_CUTOFF_5  (243)
-  #define TONE_FREQUENCY_CUTOFF_4  (487)
-  #define TONE_FREQUENCY_CUTOFF_3  (974)
-  #define TONE_FREQUENCY_CUTOFF_2  (1949)
-  #define TONE_FREQUENCY_CUTOFF_1  (65535)
-#elif F_CPU <= 8000000
-  #define TONE_FREQUENCY_CUTOFF_15 (1)
-  #define TONE_FREQUENCY_CUTOFF_14 (3)
-  #define TONE_FREQUENCY_CUTOFF_13 (7)
-  #define TONE_FREQUENCY_CUTOFF_12 (15)
-  #define TONE_FREQUENCY_CUTOFF_11 (30)
-  #define TONE_FREQUENCY_CUTOFF_10 (60)
-  #define TONE_FREQUENCY_CUTOFF_9  (121)
-  #define TONE_FREQUENCY_CUTOFF_8  (243)
-  #define TONE_FREQUENCY_CUTOFF_7  (487)
-  #define TONE_FREQUENCY_CUTOFF_6  (974)
-  #define TONE_FREQUENCY_CUTOFF_5  (1949)
-  #define TONE_FREQUENCY_CUTOFF_4  (3898)
-  #define TONE_FREQUENCY_CUTOFF_3  (7797)
-  #define TONE_FREQUENCY_CUTOFF_2  (15594)
-  #define TONE_FREQUENCY_CUTOFF_1  (65535)
-#elif F_CPU <= 16000000
-  #define TONE_FREQUENCY_CUTOFF_15 (3)
-  #define TONE_FREQUENCY_CUTOFF_14 (7)
-  #define TONE_FREQUENCY_CUTOFF_13 (15)
-  #define TONE_FREQUENCY_CUTOFF_12 (30)
-  #define TONE_FREQUENCY_CUTOFF_11 (60)
-  #define TONE_FREQUENCY_CUTOFF_10 (121)
-  #define TONE_FREQUENCY_CUTOFF_9  (243)
-  #define TONE_FREQUENCY_CUTOFF_8  (487)
-  #define TONE_FREQUENCY_CUTOFF_7  (974)
-  #define TONE_FREQUENCY_CUTOFF_6  (1949)
-  #define TONE_FREQUENCY_CUTOFF_5  (3898)
-  #define TONE_FREQUENCY_CUTOFF_4  (7797)
-  #define TONE_FREQUENCY_CUTOFF_3  (15594)
-  #define TONE_FREQUENCY_CUTOFF_2  (31189)
-  #define TONE_FREQUENCY_CUTOFF_1  (65535)
-#elif F_CPU <= 16500000
-  #define TONE_FREQUENCY_CUTOFF_15 (3)
-  #define TONE_FREQUENCY_CUTOFF_14 (7)
-  #define TONE_FREQUENCY_CUTOFF_13 (15)
-  #define TONE_FREQUENCY_CUTOFF_12 (30)
-  #define TONE_FREQUENCY_CUTOFF_11 (60)
-  #define TONE_FREQUENCY_CUTOFF_10 (121)
-  #define TONE_FREQUENCY_CUTOFF_9  (243)
-  #define TONE_FREQUENCY_CUTOFF_8  (487)
-  #define TONE_FREQUENCY_CUTOFF_7  (974)
-  #define TONE_FREQUENCY_CUTOFF_6  (1949)
-  #define TONE_FREQUENCY_CUTOFF_5  (3898)
-  #define TONE_FREQUENCY_CUTOFF_4  (7797)
-  #define TONE_FREQUENCY_CUTOFF_3  (15594)
-  #define TONE_FREQUENCY_CUTOFF_2  (31189)
-  #define TONE_FREQUENCY_CUTOFF_1  (65535)
-#endif
-#endif
-
-
-#if DEBUG_TONE
-uint16_t debug_tone_last_OCRxA;
-uint16_t debug_tone_last_CSV;
-#endif
-
 
 // timerx_toggle_count:
 //  > 0 - duration specified
@@ -186,319 +50,520 @@ static volatile uint8_t *tone_timer_pin_register;
 static volatile uint8_t tone_timer_pin_mask;
 
 static uint8_t tone_pin = 255;
+static unsigned long freq = 0;
 
-
-void tone( uint8_t _pin, unsigned int frequency, unsigned long duration )
+void tone(uint8_t _pin, unsigned long frequency, unsigned long duration)
 {
-  tonetimer_(ocr_t)             ocr;
-  tonetimer_(prescale_value_t)  csv;
-  tonetimer_(cs_t)              csi;
-  
-  if ( tone_pin == 255 )
-  {
-    /* Set the timer to power-up conditions so we start from a known state */
-    ToneTimer_SetToPowerup();
+  if (_pin == tone_pin && freq == frequency && duration == 0) {
+    return;
+  }
+  freq = frequency;
 
-    /* 
+  if (tone_pin == 255) {
+    /* Set the timer to power-up conditions so we start from a known state */
+    // Ensure the timer is in the same state as power-up
+#if (TIMER_TO_USE_FOR_TONE == 0)
+    TCCR0B = (0 << FOC0A) | (0 << FOC0B) | (0 << WGM02) | (0 << CS02) | (0 << CS01) | (0 << CS00);
+    TCCR0A = (0 << COM0A1) | (0 << COM0A0) | (0 << COM0B1) | (0 << COM0B0) | (0 << WGM01) | (0 << WGM00);
+    // Reset the count to zero
+
+    TCNT0 = 0;
+    // Set the output compare registers to zero
+    OCR0A = 0;
+    OCR0B = 0;
+#if defined(TIMSK)
+    // Disable all Timer0 interrupts
+    TIMSK &= ~((1 << OCIE0B) | (1 << OCIE0A) | (1 << TOIE0));
+    // Clear the Timer0 interrupt flags
+    TIFR |= ((1 << OCF0B) | (1 << OCF0A) | (1 << TOV0));
+#elif defined(TIMSK1)
+    // Disable all Timer0 interrupts
+    TIMSK0 &= ~((1 << OCIE0B) | (1 << OCIE0A) | (1 << TOIE0));
+    // Clear the Timer0 interrupt flags
+    TIFR0 |= ((1 << OCF0B) | (1 << OCF0A) | (1 << TOV0));
+#endif // TIMER_TO_USE_FOR_TONE==0
+
+#elif defined(__AVR_ATtiny43__)
+    TCCR1B = (0 << FOC1A) | (0 << FOC1B) | (0 << WGM12) | (0 << CS12) | (0 << CS11) | (0 << CS10);
+    TCCR1A = (0 << COM1A1) | (0 << COM1A0) | (0 << COM1B1) | (0 << COM1B0) | (0 << WGM11) | (0 << WGM10);
+    // Reset the count to zero
+
+    TCNT1 = 0;
+    // Set the output compare registers to zero
+    OCR1A = 0;
+    OCR1B = 0;
+    // Disable all Timer0 interrupts
+    TIMSK1 &= ~((1 << OCIE1B) | (1 << OCIE1A) | (1 << TOIE1));
+    // Clear the Timer0 interrupt flags
+    TIFR1 |= ((1 << OCF1B) | (1 << OCF1A) | (1 << TOV1));
+
+#elif (TIMER_TO_USE_FOR_TONE == 1) && defined(TCCR1)  // START OF ATtiny85
+    // Turn off Clear on Compare Match, turn off PWM A, disconnect the timer from the output pin, stop the clock
+    TCCR1 = (0 << CTC1) | (0 << PWM1A) | (0 << COM1A1) | (0 << COM1A0) | (0 << CS13) | (0 << CS12) | (0 << CS11) | (0 << CS10);
+    // Turn off PWM A, disconnect the timer from the output pin, no Force Output Compare Match, no Prescaler Reset
+    GTCCR &= ~((1 << PWM1B) | (1 << COM1B1) | (1 << COM1B0) | (1 << FOC1B) | (1 << FOC1A) | (1 << PSR1));
+    // Reset the count to zero
+    TCNT1 = 0;
+    // Set the output compare registers to zero
+    OCR1A = 0;
+    OCR1B = 0;
+    OCR1C = 0;
+    // Disable all Timer1 interrupts
+    TIMSK &= ~((1 << OCIE1A) | (1 << OCIE1B) | (1 << TOIE1));
+    // Clear the Timer1 interrupt flags
+    TIFR |= ((1 << OCF1A) | (1 << OCF1B) | (1 << TOV1));
+
+    // END OF ATtiny85
+#elif (TIMER_TO_USE_FOR_TONE == 1) && defined(TCCR1E) //
+    TCCR1A = 0;
+    TCCR1B = 0;
+    TCCR1C = 0;
+    TCCR1D = 0;
+    TCCR1E = 0;
+    // Reset the count to zero
+    TCNT1 = 0;
+    // Set the output compare registers to zero
+    OCR1A = 0;
+    OCR1B = 0;
+    // Disable all Timer1 interrupts
+    TIMSK &= ~((1 << TOIE1) | (1 << OCIE1A) | (1 << OCIE1B) | (1 << OCIE1D));
+    // Clear the Timer1 interrupt flags
+    TIFR |= ((1 << TOV1) | (1 << OCF1A) | (1 << OCF1B) | (1 << OCF1D));
+
+#elif (TIMER_TO_USE_FOR_TONE == 1) // Well behaved timer
+    // Turn off Input Capture Noise Canceler, Input Capture Edge Select on Falling, stop the clock
+    TCCR1B = (0 << ICNC1) | (0 << ICES1) | (0 << WGM13) | (0 << WGM12) | (0 << CS12) | (0 << CS11) | (0 << CS10);
+    // Disconnect the timer from the output pins, Set Waveform Generation Mode to Normal
+    TCCR1A = (0 << COM1A1) | (0 << COM1A0) | (0 << COM1B1) | (0 << COM1B0) | (0 << WGM11) | (0 << WGM10);
+    // Reset the count to zero
+    TCNT1 = 0;
+    // Set the output compare registers to zero
+    OCR1A = 0;
+    OCR1B = 0;
+#if defined(TCCR1D)
+    TCCR1C = 0;
+    TCCR1D = 0;
+#endif
+    // Disable all Timer1 interrupts
+#if defined(TIMSK)
+    TIMSK &= ~((1 << TOIE1) | (1 << OCIE1A) | (1 << OCIE1B) | (1 << ICIE1));
+    // Clear the Timer1 interrupt flags
+    TIFR |= ((1 << TOV1) | (1 << OCF1A) | (1 << OCF1B) | (1 << ICF1));
+#elif defined(TIMSK1)
+    // Disable all Timer1 interrupts
+    TIMSK1 &= ~((1 << TOIE1) | (1 << OCIE1A) | (1 << OCIE1B) | (1 << ICIE1));
+    // Clear the Timer1 interrupt flags
+    TIFR1 |= ((1 << TOV1) | (1 << OCF1A) | (1 << OCF1B) | (1 << ICF1));
+#endif
+
+#endif
+
+    /*
       Compare Output Mode = Normal port operation, OCxA/OCxB disconnected.
       Waveform Generation Mode = 4; 0100; CTC; (Clear Timer on Compare); OCR1A; Immediate; MAX
       Clock Select = No clock source (Timer/Counter stopped).
       Note: Turn off the clock first to avoid ticks and scratches.
     */
-    ToneTimer_SetWaveformGenerationMode( ToneTimer_(CTC_OCR) );
+#if defined(__AVR_ATtiny43__)
+
+    TCCR1A = (0 << WGM00) | (1 << WGM01);
+    // TCCR1B =(0<<WGM02);
+#else
+#if TIMER_TO_USE_FOR_TONE == 1
+#if defined(TCCR1) // START OF ATtiny85
+    TCCR1 = (1 << CTC1) | (0 << PWM1A);
+    // GTCCR = (0<<PWM1B);
+#elif defined(__AVR_ATtiny167__) || defined(__AVR_ATtiny87__)
+    // We know that TCCR1A and TCCR1B are 0
+    // TCCR1A = (0<<WGM11) | (0<<WGM10); // we don't need this
+    TCCR1B = (0 << WGM13) | (1 << WGM12);
+#elif !defined(TCCR1E)
+    // TCCR1A = (0<<WGM11) | (0<<WGM10);
+    TCCR1B = (1 << WGM12) | (0 << WGM13);
+#endif
+#elif TIMER_TO_USE_FOR_TONE == 0
+    TCCR0A = (0 << WGM00) | (1 << WGM01);
+    // TCCR1B = (0<<WGM02);
+#endif
+#endif
 
     /* If the tone pin can be driven directly from the timer */
 
-    if ( (_pin == ToneTimer_OutputComparePinA) || (_pin == ToneTimer_OutputComparePinB) )
+#if defined(__AVR_ATtiny167__) || defined(__AVR_ATtiny87__)
+    /* Pin toggling is handled by the hardware */
+    tone_timer_pin_register = NULL;
+    tone_timer_pin_mask = 0;
+    uint8_t timer = digitalPinToTimer(_pin);
+    if (timer & 0x10) {
+      TCCR1D = 1 << (timer & 0x07);
+      TCCR1A = 1 << ((timer & 0x04) ? COM1B0 : COM1A0);
+
+#else
+#if (TIMER_TO_USE_FOR_TONE == 1) && defined(TCCR1E)
+    if ((digitalPinToTimer(_pin) == TIMER1A) || (digitalPinToTimer(_pin) == TIMER1B) || (digitalPinToTimer(_pin) == TIMER1D)) {
+#elif (TIMER_TO_USE_FOR_TONE == 1)
+#ifdef __AVR_ATtinyX5__
+    if (_pin == 1 || _pin == 4)
+#else
+    if ((digitalPinToTimer(_pin) == TIMER1A) || (digitalPinToTimer(_pin) == TIMER1B))
+#endif
     {
+#elif (TIMER_TO_USE_FOR_TONE == 0)
+    if ((digitalPinToTimer(_pin) == TIMER0A) || (digitalPinToTimer(_pin) == TIMER0B)) {
+#else
+    if (0) { // unsupported, so only use software.
+#endif
       /* Pin toggling is handled by the hardware */
       tone_timer_pin_register = NULL;
       tone_timer_pin_mask = 0;
+      uint8_t timer = digitalPinToTimer(_pin);
+#ifdef __AVR_ATtinyX5__
+      if (_pin == 1) {
+        timer = TIMER1A;
+      }
+#endif
+#if defined(COM0A1)
+      // Just in case there are now pwm pins on timer0 (ATTiny861)
+      if (timer == TIMER0A) {
+        /* Compare Output Mode = Toggle OC0A on Compare Match. */
+        cbi(TCCR0A, COM0A1);
+        sbi(TCCR0A, COM0A0);
+      } else
+#endif
+          if (timer == TIMER1A) {
+        /* Compare Output Mode = Toggle OC1A on Compare Match. */
+#if defined(TCCR1)
+        cbi(TCCR1, COM1A1);
+        sbi(TCCR1, COM1A0);
+#elif defined(TCCR1E)
+        cbi(TCCR1C, COM1A1S);
+        sbi(TCCR1C, COM1A0S);
+#else
+        cbi(TCCR1A, COM1A1);
+        sbi(TCCR1A, COM1A0);
+#endif
+      }
+#if defined(COM0B1)
+      // Just in case there are <2 pwm pins on timer0 (ATTiny861)
+      else if (timer == TIMER0B) {
+        /* Compare Output Mode = Toggle OC0B on Compare Match. */
+        cbi(TCCR0A, COM0B1);
+        sbi(TCCR0A, COM0B0);
+      }
+#endif
+#if defined(COM1D1)
+      // in case there is a OCRD. (ATtiny861)
+      else if (timer == TIMER1D) {
+        /* Compare Output Mode = Toggle OC1D on Compare Match. */
+#if defined(TCCR1)
+        cbi(TCCR1, COM1D1);
+        sbi(TCCR1, COM1D0);
+#elif defined(TCCR1E)
+        cbi(TCCR1C, COM1D1);
+        sbi(TCCR1C, COM1D0);
+#else
+        cbi(TCCR1A, COM1D1);
+        sbi(TCCR1A, COM1D0);
+#endif
+      }
+#endif
+      else {
+        /* Compare Output Mode = Toggle OC1B on Compare Match. */
+#if defined(TCCR1)
+        cbi(GTCCR, COM1B1);
+        sbi(GTCCR, COM1B0);
+#elif defined(TCCR1E)
+        cbi(TCCR1C, COM1B1S);
+        sbi(TCCR1C, COM1B0S);
+#else
+        cbi(TCCR1A, COM1B1);
+        sbi(TCCR1A, COM1B0);
+#endif
+      }
+#endif //  defined(__AVR_ATtiny167__) || defined(__AVR_ATtiny87__)
 
-      if ( _pin == ToneTimer_OutputComparePinA )
-      {
-        /* Compare Output Mode = Toggle OCxA on Compare Match. */
-        ToneTimer_SetCompareOutputModeA( ToneTimer_(Toggle) );
-      }
-      else // if ( _pin == ToneTimer_OutputComparePinB )
-      {
-        /* Compare Output Mode = Toggle OCxA on Compare Match. */
-        ToneTimer_SetCompareOutputModeB( ToneTimer_(Toggle) );
-      }
-    }
-    else
-    {
+    } else {
       /* Save information needed by the interrupt service routine */
-      tone_timer_pin_register = portOutputRegister( digitalPinToPort( _pin ) );
-      tone_timer_pin_mask = digitalPinToBitMask( _pin );
+      tone_timer_pin_register = portOutputRegister(digitalPinToPort(_pin));
+      tone_timer_pin_mask = digitalPinToBitMask(_pin);
 
       /* Compare Output Mode = Normal port operation, OCxA disconnected. */
-      ToneTimer_DisconnectOutputs();
+#if (TIMER_TO_USE_FOR_TONE == 0)
+      TCCR0A &= ~((1 << COM0A1) | (1 << COM0A0) | (1 << COM0B1) | (1 << COM0B0));
+#elif (TIMER_TO_USE_FOR_TONE == 1) & defined(TCCR1)
+      TCCR1 &= ~((1 << COM1A1) | (1 << COM1A0));
+      GTCCR &= ~((1 << COM1B1) | (1 << COM1B0));
+#elif (TIMER_TO_USE_FOR_TONE == 1) && defined(TCCR1E)
+    TCCR1C &= ~((1 << COM1A1S) | (1 << COM1A0S) | (1 << COM1B1S) | (1 << COM1B0S) | (1 << COM1D1) | (1 << COM1D0));
+#elif (TIMER_TO_USE_FOR_TONE == 1)
+    TCCR1A &= ~((1 << COM1A1) | (1 << COM1A0) | (1 << COM1B1) | (1 << COM1B0));
+#endif
     }
 
     /* Ensure the pin is configured for output */
-    pinMode( _pin, OUTPUT );
+    pinMode(_pin, OUTPUT);
 
     tone_pin = _pin;
   }
 
-  if ( tone_pin == _pin )
-  {
-    /* Stop the clock while we make changes. */
+  if (tone_pin == _pin) {
+    /* Stop the clock while we make changes, then set the counter to zero to reduce ticks and scratches. */
 
-    ToneTimer_ClockSelect( ToneTimer_(Stopped) );
+    // Millis timer is always processor clock divided by MillisTimer_Prescale_Value (64)
+#if (TIMER_TO_USE_FOR_TONE == 0)
+    TCCR0B &= ~((1 << CS02) | (1 << CS01) | (1 << CS00));
+    TCNT0 = 0;
+#elif (TIMER_TO_USE_FOR_TONE == 1) && defined(TCCR1)
+    TCCR1 &= ~((1 << CS13) | (1 << CS12) | (1 << CS11) | (1 << CS10));
+    TCNT1 = 0;
+#elif (TIMER_TO_USE_FOR_TONE == 1) && defined(TCCR1E)
+  TCCR1B &= ~((1 << CS13) | (1 << CS12) | (1 << CS11) | (1 << CS10));
+  TCNT1 = 0;
+#elif (TIMER_TO_USE_FOR_TONE == 1)
+  TCCR1B &= ~((1 << CS12) | (1 << CS11) | (1 << CS10));
+  TCNT1 = 0;
+#endif
 
-    /* Start the counter at zero to reduce ticks and scratches. */
-
-    ToneTimer_SetCount( 0 );
-
-    if ( frequency > 0 )
-    {
-      if ( frequency < Tone_Lowest_Frequency )
-      {
-        frequency = Tone_Lowest_Frequency;
-      }
-
+    if (frequency > 0) {
       /* Determine which prescaler to use */
       /* Set the Output Compare Register (rounding up) */
 
-      #if defined( TONE_FREQUENCY_CUTOFF_15 )
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_15 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_15);
-        csi = ToneTimer_(Prescale_Index_15);
+#if TIMER_TO_USE_FOR_TONE == 1
+#ifdef PLLTIMER1
+      uint32_t ocr = 64000000UL / frequency / 2;
+#else
+#ifdef LOWPLLTIMER1
+      uint32_t ocr = 32000000UL / frequency / 2;
+#else
+      uint32_t ocr = F_CPU / frequency / 2;
+#endif
+#endif
+#if defined(TCCR1E)
+      uint8_t prescalarbits = 0b0001;
+      if (ocr > 256) {
+        ocr >>= 3;              // divide by 8
+        prescalarbits = 0b0100; // ck/8
+        if (ocr > 256) {
+          ocr >>= 3;              // divide by a further 8
+          prescalarbits = 0b0111; // ck/64
+          if (ocr > 256) {
+            ocr >>= 2;              // divide by a further 4
+            prescalarbits = 0b1001; // ck/256
+            if (ocr > 256) {
+              // can't do any better than /1024
+              ocr >>= 2;              // divide by a further 4
+              prescalarbits = 0b1011; // ck/1024
+            }
+          }
+        }
       }
-      else
-      #endif
-
-      #if defined( TONE_FREQUENCY_CUTOFF_14 )
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_14 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_14);
-        csi = ToneTimer_(Prescale_Index_14);
+#else
+#if defined(TCCR1) // Start FANCY ATtiny85 code
+      uint8_t prescalarbits = 0b0001;
+      while (ocr > 0xff && prescalarbits < 15) {
+        prescalarbits++;
+        ocr >>= 1;
       }
-      else
-      #endif
-
-      #if defined( TONE_FREQUENCY_CUTOFF_13 )
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_13 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_13);
-        csi = ToneTimer_(Prescale_Index_13);
+      OCR1C = ocr - 1;
+#else
+      uint8_t prescalarbits = 0b001;
+      if (ocr > 0xffff) {
+        ocr /= 64;
+        prescalarbits = 0b011;
       }
-      else
-      #endif
-
-      #if defined( TONE_FREQUENCY_CUTOFF_12 )
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_12 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_12);
-        csi = ToneTimer_(Prescale_Index_12);
+#endif
+      ocr -= 1; // Note we are doing the subtraction of 1 here to save repeatedly calculating ocr from just the frequency in the if tree above
+#if defined(__AVR_ATtiny167__) || defined(__AVR_ATtiny87__)
+      if (digitalPinToTimer(_pin) & 0x04) {
+        // the timer pin table now has the information we need!
+        OCR1B = ocr;
       }
-      else
-      #endif
-
-      #if defined( TONE_FREQUENCY_CUTOFF_11 )
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_11 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_11);
-        csi = ToneTimer_(Prescale_Index_11);
+      // OCR1A is used for interrupts / duration
+#endif
+      OCR1A = ocr;
+#endif //  defined(TCCR1E)
+#elif TIMER_TO_USE_FOR_TONE == 0
+      uint32_t ocr = F_CPU / frequency / 2;
+      uint8_t prescalarbits = 0b001; // ck/1
+      if (ocr > 256) {
+        ocr >>= 3;             // divide by 8
+        prescalarbits = 0b010; // ck/8
+        if (ocr > 256) {
+          ocr >>= 3;             // divide by a further 8
+          prescalarbits = 0b011; // ck/64
+          if (ocr > 256) {
+            ocr >>= 2;             // divide by a further 4
+            prescalarbits = 0b100; // ck/256
+            if (ocr > 256) {
+              // can't do any better than /1024
+              ocr >>= 2;             // divide by a further 4
+              prescalarbits = 0b101; // ck/1024
+            }
+          }
+        }
       }
-      else
-      #endif
+      ocr -= 1; // Note we are doing the subtraction of 1 here to save repeatedly calculating ocr from just the frequency in the if tree above
+      OCR0A = ocr;
 
-      #if defined( TONE_FREQUENCY_CUTOFF_10 )
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_10 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_10);
-        csi = ToneTimer_(Prescale_Index_10);
-      }
-      else
-      #endif
-
-      #if defined( TONE_FREQUENCY_CUTOFF_9 )
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_9 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_9);
-        csi = ToneTimer_(Prescale_Index_9);
-      }
-      else
-      #endif
-
-      #if defined( TONE_FREQUENCY_CUTOFF_8 )
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_8 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_8);
-        csi = ToneTimer_(Prescale_Index_8);
-      }
-      else
-      #endif
-
-      #if defined( TONE_FREQUENCY_CUTOFF_7 )
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_7 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_7);
-        csi = ToneTimer_(Prescale_Index_7);
-      }
-      else
-      #endif
-
-      #if defined( TONE_FREQUENCY_CUTOFF_6 )
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_6 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_6);
-        csi = ToneTimer_(Prescale_Index_6);
-      }
-      else
-      #endif
-
-      #if defined( TONE_FREQUENCY_CUTOFF_5 )
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_5 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_5);
-        csi = ToneTimer_(Prescale_Index_5);
-      }
-      else 
-      #endif
-
-      #if defined( TONE_FREQUENCY_CUTOFF_4 )
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_4 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_4);
-        csi = ToneTimer_(Prescale_Index_4);
-      }
-      else 
-      #endif
-
-      #if defined( TONE_FREQUENCY_CUTOFF_3 )
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_3 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_3);
-        csi = ToneTimer_(Prescale_Index_3);
-      }
-      else
-      #endif
-
-      if ( frequency <= TONE_FREQUENCY_CUTOFF_2 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_2);
-        csi = ToneTimer_(Prescale_Index_2);
-      }
-
-      else // if ( frequency <= TONE_FREQUENCY_CUTOFF_1 )
-      {
-        csv = TONETIMER_(PRESCALER_VALUE_1);
-        csi = ToneTimer_(Prescale_Index_1);
-      }
-
-      ocr = ( (2L * F_CPU) / (frequency * 2L * csv) + 1L ) / 2L - 1L;
-      ToneTimer_SetOutputCompareMatchAndClear( ocr );
-
-      #if DEBUG_TONE
-        debug_tone_last_OCRxA = ocr;
-        debug_tone_last_CSV = csv;
-      #endif
+#endif
 
       /* Does the caller want a specific duration? */
-      if ( duration > 0 )
-      {
+      if (duration > 0) {
         /* Determine how many times the value toggles */
         tone_timer_toggle_count = (2 * frequency * duration) / 1000;
-
         /* Output Compare A Match Interrupt Enable */
-        ToneTimer_EnableOutputCompareInterruptA();
-      }
-      else
-      {
+#if (TIMER_TO_USE_FOR_TONE == 1)
+#if defined(TIMSK)
+        TIMSK |= (1 << OCIE1A);
+#else
+        TIMSK1 |= (1 << OCIE1A);
+#endif
+#elif (TIMER_TO_USE_FOR_TONE == 0)
+#if defined(TIMSK)
+        TIMSK |= (1 << OCIE0A);
+#else
+        TIMSK0 |= (1 << OCIE0A);
+#endif
+#endif
+      } else {
         /* Indicate to the interrupt service routine that we'll be running until further notice */
         tone_timer_toggle_count = -1;
 
         /* All pins but the OCxA / OCxB pins have to be driven by software */
-        if ( (_pin != ToneTimer_OutputComparePinA) && (_pin != ToneTimer_OutputComparePinB) )
+#if (TIMER_TO_USE_FOR_TONE == 1)
+#if defined(TCCR1E)
+        if ((digitalPinToTimer(_pin) != TIMER1A) && (digitalPinToTimer(_pin) != TIMER1B) && (digitalPinToTimer(_pin) != TIMER1D))
+#elif defined(__AVR_ATtiny167__) || defined(__AVR_ATtiny87__)
+        if (digitalPinToTimer(_pin) & 0x10)
+#else
+        if ((digitalPinToTimer(_pin) != TIMER1A) && (digitalPinToTimer(_pin) != TIMER1B))
+#endif
         {
-          /* Output Compare A Match Interrupt Enable */
-          ToneTimer_EnableOutputCompareInterruptA();
+          /* Output Compare A Match Interrupt Enable (software control)*/
+#if defined(TIMSK)
+          TIMSK |= (1 << OCIE1A);
+#else
+          TIMSK1 |= (1 << OCIE1A);
+#endif
         }
+#elif (TIMER_TO_USE_FOR_TONE == 0)
+        if ((digitalPinToTimer(_pin) != TIMER0A) && (digitalPinToTimer(_pin) != TIMER0B)) {
+          /* Output Compare A Match Interrupt Enable (software control)*/
+#if defined(TIMSK)
+          TIMSK |= (1 << OCIE0A);
+#else
+          TIMSK0 |= (1 << OCIE0A);
+#endif
+        }
+#endif
       }
 
-      /* Start the clock... */
+      // Clock is always stopped before this point, which means all of CS[0..2] are already 0, so can just use a bitwise OR to set required bits
+#if (TIMER_TO_USE_FOR_TONE == 0)
+      TCCR0B |= (prescalarbits << CS00);
+#elif (TIMER_TO_USE_FOR_TONE == 1) && defined(TCCR1)
+      TCCR1 |= (prescalarbits << CS10);
+#elif (TIMER_TO_USE_FOR_TONE == 1)
+    TCCR1B |= (prescalarbits << CS10);
+#endif
 
-      ToneTimer_ClockSelect( csi );
-    }
-    else
-    {
+    } else {
       /* To be on the safe side, turn off all interrupts */
-      ToneTimer_InterruptsOff();
+#if defined(__AVR_ATtiny43__)
+      TIMSK1 |= (1 << OCIE0A);
+      TIMSK1 &= ~((1 << OCIE0B) | (1 << OCIE0A) | (1 << TOIE0));
+#else
+#if (TIMER_TO_USE_FOR_TONE == 1)
+#if defined(TIMSK)
+      TIMSK |= (1 << OCIE1A);
+      TIMSK &= ~((1 << TOIE1) | (1 << OCIE1A) | (1 << OCIE1B));
+#if defined(ICIE1)
+      TIMSK &= ~(1 << ICIE1);
+#endif
+#if defined(OCIE1D)
+      TIMSK &= ~(1 << OCIE1D);
+#endif
+#else
+      TIMSK1 |= (1 << OCIE1A);
+      TIMSK1 &= ~((1 << ICIE1) | (1 << OCIE1B) | (1 << OCIE1A) | (1 << TOIE1));
+#endif
+#elif (TIMER_TO_USE_FOR_TONE == 0)
+#if defined(TIMSK)
+      TIMSK |= (1 << OCIE0A);
+      TIMSK &= ~((1 << OCIE0B) | (1 << OCIE0A) | (1 << TOIE0));
+#else
+      TIMSK0 |= (1 << OCIE0A);
+      TIMSK0 &= ~((1 << OCIE0B) | (1 << OCIE0A) | (1 << TOIE0));
+#endif
+#endif
+#endif
 
       /* Clock is stopped.  Counter is zero.  The only thing left to do is turn off the output. */
-      digitalWrite( _pin, 0 );
+      digitalWrite(_pin, 0);
     }
   }
 }
 
-
-void noTone( uint8_t _pin )
+void noTone(uint8_t _pin)
 {
-  if ( (tone_pin != 255) 
-        && ((tone_pin == _pin) || (_pin == 255)) )
-  {
-    // Turn off all interrupts
-    ToneTimer_InterruptsOff();
-
-    // Stop the clock while we make changes.
-    ToneTimer_ClockSelect( ToneTimer_(Stopped) );
-
-    // Set the Tone Timer exactly the same as init did...
+  if ((tone_pin != 255) && ((tone_pin == _pin) || (_pin == 255))) {
+// Turn off all interrupts
+#if (TIMER_TO_USE_FOR_TONE == 1)
+#if defined(TIMSK)
+#if defined(ICIE1)
+    TIMSK &= ~((1 << TOIE1) | (1 << OCIE1A) | (1 << OCIE1B) | (1 << ICIE1));
+#elif defined(OCIE1D)
+    TIMSK &= ~((1 << TOIE1) | (1 << OCIE1A) | (1 << OCIE1B) | (1 << OCIE1D));
+#else
+    TIMSK &= ~((1 << TOIE1) | (1 << OCIE1A) | (1 << OCIE1B));
+#endif
+#else
+#if defined(ICIE1)
+    TIMSK1 &= ~((1 << ICIE1) | (1 << OCIE1B) | (1 << OCIE1A) | (1 << TOIE1));
+#else
+    TIMSK1 &= ~((1 << OCIE1B) | (1 << OCIE1A) | (1 << TOIE1));
+#endif
+#endif
+#elif (TIMER_TO_USE_FOR_TONE == 0)
+#if defined(TIMSK)
+    TIMSK &= ~((1 << OCIE0B) | (1 << OCIE0A) | (1 << TOIE0));
+#else
+    TIMSK0 &= ~((1 << OCIE0B) | (1 << OCIE0A) | (1 << TOIE0));
+#endif
+#endif
+    // Reinitialize the timers
     initToneTimer();
-
-//rmv    ToneTimer_SetToPowerup();
-
-  /* rmv
-	  // put timer 1 in 8-bit phase correct pwm mode
-	  TCCR1A = (0<<COM1A1)|(0<<COM1A0) | (0<<COM1B1)|(0<<COM1B0) | (0<<WGM11)|(1<<WGM10);
-
-    // set timer 1 prescale factor to 64
-    // and start the timer
-    TCCR1B = (0<<ICNC1) | (0<<ICES1) | (0<<WGM13)|(0<<WGM12) | (0<<CS12)|(1<<CS11)|(1<<CS10);
-  */
-
     // Set the output low
-    if ( tone_timer_pin_register != NULL )
-    {
+    if (tone_timer_pin_register != NULL) {
       *tone_timer_pin_register &= ~(tone_timer_pin_mask);
     }
-    else
-    {
-      digitalWrite( tone_pin, LOW );
-    }
-  
     tone_pin = 255;
   }
 }
 
-
-ISR( TONETIMER_COMPA_vect, ISR_NOBLOCK )
+#if (TIMER_TO_USE_FOR_TONE == 0)
+ISR(TIMER0_COMPA_vect)
+#elif (TIMER_TO_USE_FOR_TONE == 1)
+ISR(TIMER1_COMPA_vect)
+#else
+#error Tone timer Overflow vector not defined!
+#endif
 {
-  if ( tone_timer_toggle_count != 0 )
-  {
-    if ( tone_timer_toggle_count > 0 )
-    {
+  if (tone_timer_toggle_count != 0) {
+    if (tone_timer_toggle_count > 0) {
       --tone_timer_toggle_count;
 
-      if ( tone_timer_toggle_count == 0 )
-      {
+      if (tone_timer_toggle_count == 0) {
         // Shutdown the hardware
-        noTone( 255 );
+        noTone(255);
 
         // Skip the rest.  We're finished.
         return;
       }
     }
     *tone_timer_pin_register ^= tone_timer_pin_mask;
-  }
-  else
-  {
+  } else {
     // Shutdown the hardware
-    noTone( 255 );
+    noTone(255);
   }
 }

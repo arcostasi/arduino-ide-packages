@@ -1,5 +1,3 @@
-/* -*- mode: jde; c-basic-offset: 2; indent-tabs-mode: nil -*- */
-
 /*
   Part of the Wiring project - http://wiring.uniandes.edu.co
 
@@ -19,7 +17,7 @@
   Public License along with this library; if not, write to the
   Free Software Foundation, Inc., 59 Temple Place, Suite 330,
   Boston, MA  02111-1307  USA
-  
+
   Modified 24 November 2006 by David A. Mellis
 
   Modified 28-08-2009 for attiny84 R.Wiersma
@@ -33,112 +31,117 @@
 #include <avr/pgmspace.h>
 #include <stdio.h>
 
-#include "WConstants.h"
 #include "wiring_private.h"
 
-volatile static voidFuncPtr intFunc[NUMBER_EXTERNAL_INTERRUPTS];
+static volatile voidFuncPtr intFunc[NUMBER_EXTERNAL_INTERRUPTS];
 
-#if defined( MCUCR ) && ! defined( EICRA )
-  #define EICRA MCUCR
+#if defined(MCUCR) && !defined(EICRA)
+#define EICRA MCUCR
 #endif
 
-#if defined( GIMSK ) && ! defined( EIMSK )
-  #define EIMSK GIMSK
+#if defined(GIMSK) && !defined(EIMSK)
+#define EIMSK GIMSK
 #endif
 
-void attachInterrupt(uint8_t interruptNum, void (*userFunc)(void), int mode) 
+void attachInterrupt(uint8_t interruptNum, void (*userFunc)(void), int mode)
 {
-  if ( interruptNum < NUMBER_EXTERNAL_INTERRUPTS ) 
-  {
-    /* 
-      If attachInterrupt is called in succession for the same 
-      interruptNum but a different userFunc then the following line 
+  if (interruptNum < NUMBER_EXTERNAL_INTERRUPTS) {
+    /*
+      If attachInterrupt is called in succession for the same
+      interruptNum but a different userFunc then the following line
       is not safe.  Changing intFunc is not atomic.
-    intFunc[interruptNum] = userFunc;
+      intFunc[interruptNum] = userFunc;
     */
     {
-      // save interrupt flag
+      // Save interrupt flag
       uint8_t SaveSREG = SREG;
-      // disable interrupts
+      // Disable interrupts
       cli();
       // access the shared data
       intFunc[interruptNum] = userFunc;
       // restore the interrupt flag
       SREG = SaveSREG;
     }
-    
+
     // Configure the interrupt mode (trigger on low input, any change, rising
     // edge, or falling edge).  The mode constants were chosen to correspond
     // to the configuration bits in the hardware register, so we simply shift
     // the mode into place.
-      
+
     // Enable the interrupt.
 
-    switch ( interruptNum )
-    {
-      #if NUMBER_EXTERNAL_INTERRUPTS >= 1
-        case EXTERNAL_INTERRUPT_0:
-          EICRA = (EICRA & ~((1 << ISC00) | (1 << ISC01))) | (mode << ISC00);
-          EIMSK |= (1 << INT0);
-          break;
-      #endif
+    switch (interruptNum) {
+#if NUMBER_EXTERNAL_INTERRUPTS >= 1
+    case EXTERNAL_INTERRUPT_0:
+      EICRA = (EICRA & ~((1 << ISC00) | (1 << ISC01))) | (mode << ISC00);
+      EIMSK |= (1 << INT0);
+      break;
+#endif
 
-      #if NUMBER_EXTERNAL_INTERRUPTS >= 2
-        case EXTERNAL_INTERRUPT_1:
-          EICRA = (EICRA & ~((1 << ISC10) | (1 << ISC11))) | (mode << ISC10);
-          EIMSK |= (1 << INT1);
-          break;
-      #endif
+#if NUMBER_EXTERNAL_INTERRUPTS >= 2 && !defined(ISC11)
+      //For ATtiny861, but interrupts share the same vector.
+    case EXTERNAL_INTERRUPT_1:
+      EICRA = (EICRA & ~((1 << ISC00) | (1 << ISC01))) | (mode << ISC00);
+      EIMSK |= (1 << INT1);
+      break;
+#endif
 
-      #if NUMBER_EXTERNAL_INTERRUPTS > 2
-      #error Add handlers for the additional interrupts.
-      #endif
+#if NUMBER_EXTERNAL_INTERRUPTS >= 2 && defined(ISC11)
+    case EXTERNAL_INTERRUPT_1:
+      EICRA = (EICRA & ~((1 << ISC10) | (1 << ISC11))) | (mode << ISC10);
+      EIMSK |= (1 << INT1);
+      break;
+#endif
+
+#if NUMBER_EXTERNAL_INTERRUPTS > 2
+#error Add handlers for the additional interrupts.
+#endif
     }
   }
 }
 
-void detachInterrupt(uint8_t interruptNum) 
+void detachInterrupt(uint8_t interruptNum)
 {
-  if ( interruptNum < NUMBER_EXTERNAL_INTERRUPTS ) 
-  {
+  if (interruptNum < NUMBER_EXTERNAL_INTERRUPTS) {
     // Disable the interrupt.  (We can't assume that interruptNum is equal
-    // to the number of the EIMSK bit to clear, as this isn't true on the 
+    // to the number of the EIMSK bit to clear, as this isn't true on the
     // ATmega8.  There, INT0 is 6 and INT1 is 7.)
 
-    switch (interruptNum) 
-    {
-      #if NUMBER_EXTERNAL_INTERRUPTS >= 1
-        case EXTERNAL_INTERRUPT_0:
-          EIMSK &= ~(1 << INT0);
-          break;;
-      #endif
+    switch (interruptNum) {
+#if NUMBER_EXTERNAL_INTERRUPTS >= 1
+    case EXTERNAL_INTERRUPT_0:
+      EIMSK &= ~(1 << INT0);
+      break;
+      ;
+#endif
 
-      #if NUMBER_EXTERNAL_INTERRUPTS >= 2
-        case EXTERNAL_INTERRUPT_1:
-          EIMSK &= ~(1 << INT1);
-          break;;
-      #endif
+#if NUMBER_EXTERNAL_INTERRUPTS >= 2
+    case EXTERNAL_INTERRUPT_1:
+      EIMSK &= ~(1 << INT1);
+      break;
+      ;
+#endif
 
-      #if NUMBER_EXTERNAL_INTERRUPTS > 2
-      #error Add handlers for the additional interrupts.
-      #endif
+#if NUMBER_EXTERNAL_INTERRUPTS > 2
+#error Add handlers for the additional interrupts.
+#endif
     }
     intFunc[interruptNum] = 0;
   }
 }
 
 #if NUMBER_EXTERNAL_INTERRUPTS >= 1
-ISR(EXTERNAL_INTERRUPT_0_vect, ISR_NOBLOCK)
+ISR(EXTERNAL_INTERRUPT_0_vect)
 {
-  if(intFunc[EXTERNAL_INTERRUPT_0])
+  if (intFunc[EXTERNAL_INTERRUPT_0])
     intFunc[EXTERNAL_INTERRUPT_0]();
 }
 #endif
 
 #if NUMBER_EXTERNAL_INTERRUPTS >= 2
-ISR(EXTERNAL_INTERRUPT_1_vect, ISR_NOBLOCK)
+ISR(EXTERNAL_INTERRUPT_1_vect)
 {
-  if(intFunc[EXTERNAL_INTERRUPT_1])
+  if (intFunc[EXTERNAL_INTERRUPT_1])
     intFunc[EXTERNAL_INTERRUPT_1]();
 }
 #endif

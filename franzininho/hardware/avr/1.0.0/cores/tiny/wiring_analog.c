@@ -1,6 +1,6 @@
 /*
   wiring_analog.c - analog input and output
-  Part of Arduino - http://www.arduino.cc/
+  Part of Arduino - http:// www.arduino.cc/
 
   Copyright (c) 2005-2006 David A. Mellis
 
@@ -28,38 +28,65 @@
 
 #include "wiring_private.h"
 #include "pins_arduino.h"
-#include "core_adc.h"
-#include "core_pins.h"
-#include "core_timers.h"
-#include "PwmTimer.h"
+
+#ifndef DEFAULT
+// For those with no ADC, need to define default.
+#define DEFAULT (0)
+#endif
 
 uint8_t analog_reference = DEFAULT;
 
 void analogReference(uint8_t mode)
 {
-  // can't actually set the register here because the default setting
+  // Can't actually set the register here because the default setting
   // will connect AVCC and the AREF pin, which would cause a short if
   // there's something connected to AREF.
   // fix? Validate the mode?
   analog_reference = mode;
 }
 
+#if defined(REFS1)
+#define ADMUX_REFS_MASK (0x03)
+#else
+#define ADMUX_REFS_MASK (0x01)
+#endif
+
+#if defined(MUX5)
+#define ADMUX_MUX_MASK (0x3f)
+#elif defined(MUX4)
+#define ADMUX_MUX_MASK (0x1f)
+#elif defined(MUX3)
+#define ADMUX_MUX_MASK (0x0f)
+#else
+#define ADMUX_MUX_MASK (0x07)
+#endif
+
 int analogRead(uint8_t pin)
 {
-  #if defined( CORE_ANALOG_FIRST )
-    if ( pin >= CORE_ANALOG_FIRST ) pin -= CORE_ANALOG_FIRST; // allow for channel or pin numbers
-  #endif
+  pin &= 127; // Strip off the high bit of the A# constants
+#ifndef ADCSRA
+  return digitalRead(analogInputToDigitalPin(pin)) ? 1023 : 0; // No ADC, so read as a digital pin instead.
+#endif
 
-  // fix? Validate pin?
+#if defined(ADMUX)
+  ADMUX = ((analog_reference & ADMUX_REFS_MASK) << REFS0) | ((pin & ADMUX_MUX_MASK) << MUX0); // Select the channel and reference
+#if defined(REFS2)
+  ADMUX |= (((analog_reference & 0x04) >> 2) << REFS2); // Some have an extra reference bit in a weird position.
+#endif
+#endif
 
-  ADC_SetVoltageReference( analog_reference );
-  ADC_SetInputChannel( pin );
+#if defined(HAVE_ADC) && HAVE_ADC
+  sbi(ADCSRA, ADSC); // Start conversion
 
-  ADC_StartConversion();
+  while (ADCSRA & (1 << ADSC))
+    ; // Wait for conversion to complete.
 
-  while( ADC_ConversionInProgress() );
-
-  return( ADC_GetDataRegister() );
+  uint8_t low = ADCL;
+  uint8_t high = ADCH;
+  return (high << 8) | low;
+#else
+  return LOW;
+#endif
 }
 
 // Right now, PWM output only works on the pins with
@@ -75,66 +102,71 @@ void analogWrite(uint8_t pin, int val)
   // call for the analog output pins.
   pinMode(pin, OUTPUT);
 
-  if (val <= 0)
-  {
+  if (val <= 0) {
     digitalWrite(pin, LOW);
-  }
-  else if (val >= 255)
-  {
+  } else if (val >= 255) {
     digitalWrite(pin, HIGH);
-  }
-  else
-  {
-    #if CORE_PWM_COUNT >= 1
-      if ( pin == CORE_PWM0_PIN )
-      {
-        Pwm0_SetCompareOutputMode( Pwm0_Clear );
-        Pwm0_SetOutputCompareMatch( val );
-      }
-      else
-    #endif
+  } else {
+    uint8_t timer = digitalPinToTimer(pin);
+#if defined(TCCR0A) && defined(COM0A1)
+    if (timer == TIMER0A) {
+      // Connect pwm to pin on timer 0, channel A
+      sbi(TCCR0A, COM0A1);
+      // cbi(TCCR0A, COM0A0);
+      OCR0A = val; // set pwm duty
+    } else
+#endif
+#if defined(TCCR0A) && defined(COM0B1)
+    if (timer == TIMER0B) {
+      // Connect pwm to pin on timer 0, channel B
+      sbi(TCCR0A, COM0B1);
+      // cbi(TCCR0A, COM0B0);
+      OCR0B = val; // set pwm duty
+    } else
+#endif
+#if defined(TCCR1A) && defined(COM1A1) && !defined(TCCR1E)
+    // TCCR1E is present only on tiny861, and there's no TCCR1A on Tiny85.
+    // So this handles "normal" timers
+    if (timer == TIMER1A) {
+      // connect pwm to pin on timer 1, channel A
+      sbi(TCCR1A, COM1A1);
+      // cbi(TCCR1A, COM1A0);
+      OCR1A = val; // set pwm duty
+    } else
+#endif
 
-    #if CORE_PWM_COUNT >= 2
-      if ( pin == CORE_PWM1_PIN )
-      {
-        Pwm1_SetCompareOutputMode( Pwm1_Clear );
-        Pwm1_SetOutputCompareMatch( val );
-      }
-      else
-    #endif
+#if defined(TCCR1) && defined(COM1A1) // Tiny85
+    if (timer == TIMER1A) {
+      // Connect pwm to pin on timer 1, channel A
+      sbi(TCCR1, COM1A1);
+      // cbi(TCCR1, COM1A0);
+      OCR1A = val; // set pwm duty
+    } else
+#endif
 
-    #if CORE_PWM_COUNT >= 3
-      if ( pin == CORE_PWM2_PIN )
-      {
-        Pwm2_SetCompareOutputMode( Pwm2_Clear );
-        Pwm2_SetOutputCompareMatch( val );
-      }
-      else
-    #endif
+#if defined(TCCR1A) && defined(COM1B1) && !defined(TCCR1E)
+    if (timer == TIMER1B) {
+      // Connect pwm to pin on timer 1, channel B
+      sbi(TCCR1A, COM1B1);
+      // cbi(TCCR1A, COM1B0);
+      OCR1B = val; // set pwm duty
+    } else
+#endif
 
-    #if CORE_PWM_COUNT >= 4
-      if ( pin == CORE_PWM3_PIN )
-      {
-        Pwm3_SetCompareOutputMode( Pwm3_Clear );
-        Pwm3_SetOutputCompareMatch( val );
-      }
-      else
-    #endif
-
-    #if CORE_PWM_COUNT >= 5
-    #error Only 4 PWM pins are supported.  Add more conditions.
-    #endif
-
+#if defined(TCCR1) && defined(COM1B1)
+    if (timer == TIMER1B) {
+      // Connect pwm to pin on timer 1, channel B
+      sbi(GTCCR, COM1B1);
+      // cbi(GTCCR, COM1B0);
+      OCR1B = val; // set pwm duty
+    } else
+#endif
     {
-      if (val < 128)
-      {
+      if (val < 128) {
         digitalWrite(pin, LOW);
-      }
-      else
-      {
+      } else {
         digitalWrite(pin, HIGH);
       }
     }
-
   }
 }

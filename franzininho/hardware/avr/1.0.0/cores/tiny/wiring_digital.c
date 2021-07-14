@@ -1,6 +1,6 @@
 /*
   wiring_digital.c - digital input and output functions
-  Part of Arduino - http://www.arduino.cc/
+  Part of Arduino - http:// www.arduino.cc/
 
   Copyright (c) 2005-2006 David A. Mellis
 
@@ -25,131 +25,153 @@
   Modified 14-10-2009 for attiny45 Saposoft
 */
 
+#define ARDUINO_MAIN
+
 #include "wiring_private.h"
 #include "pins_arduino.h"
-#include "core_pins.h"
-#include "core_timers.h"
-#include "PwmTimer.h"
 
 void pinMode(uint8_t pin, uint8_t mode)
 {
-	uint8_t bit = digitalPinToBitMask(pin);
-	uint8_t port = digitalPinToPort(pin);
-	volatile uint8_t *reg, *out;
+  if (pin & 128) {
+    pin = analogInputToDigitalPin((pin & 127));
+  }
 
-	if (port == NOT_A_PIN) return;
+  uint8_t bit = digitalPinToBitMask(pin);
+  uint8_t port = digitalPinToPort(pin);
 
-	// JWS: can I let the optimizer do this?
-	reg = portModeRegister(port);
-	out = portOutputRegister(port);
+  volatile uint8_t *reg, *out;
 
-	if (mode == INPUT) { 
-		uint8_t oldSREG = SREG;
-		cli();
-		*reg &= ~bit;
-		SREG = oldSREG;
-	} else if (mode == INPUT_PULLUP) {
-		uint8_t oldSREG = SREG;
-                cli();
-		*reg &= ~bit;
-		*out |= bit;
-		SREG = oldSREG;
-	} else {
-		uint8_t oldSREG = SREG;
-		cli();
-		*reg |= bit;
-		SREG = oldSREG;
-	}
+  if (port == NOT_A_PIN)
+    return;
+
+  reg = portModeRegister(port);
+  out = portOutputRegister(port);
+
+  if (mode == INPUT) {
+    uint8_t oldSREG = SREG;
+    cli();
+    *reg &= ~bit;
+    *out &= ~bit;
+    SREG = oldSREG;
+  } else if (mode == INPUT_PULLUP) {
+    uint8_t oldSREG = SREG;
+    cli();
+    *reg &= ~bit;
+    *out |= bit;
+    SREG = oldSREG;
+  } else {
+    uint8_t oldSREG = SREG;
+    cli();
+    *reg |= bit;
+    SREG = oldSREG;
+  }
 }
 
-// Forcing this inline keeps the callers from having to push their own stuff
-// on the stack. It is a good performance win and only takes 1 more byte per
-// user than calling. (It will take more bytes on the 168.)
-//
-// But shouldn't this be moved into pinMode? Seems silly to check and do on
-// each digitalread or write.
-//
-__attribute__((always_inline)) static inline void turnOffPWM( uint8_t pin )
+static void turnOffPWM(uint8_t timer)
 {
-  #if CORE_PWM_COUNT >= 1
-    if ( pin == CORE_PWM0_PIN )
-    {
-      Pwm0_SetCompareOutputMode( Pwm0_Disconnected );
-    }
-    else
-  #endif
+#if defined(TCCR0A) && defined(COM0A1)
+  if (timer == TIMER0A) {
+    cbi(TCCR0A, COM0A1);
+    // cbi(TCCR0A, COM0A0);
+  } else
+#endif
 
-  #if CORE_PWM_COUNT >= 2
-    if ( pin == CORE_PWM1_PIN )
-    {
-      Pwm1_SetCompareOutputMode( Pwm1_Disconnected );
-    }
-    else
-  #endif
+#if defined(TCCR0A) && defined(COM0B1)
+  if (timer == TIMER0B) {
+    cbi(TCCR0A, COM0B1);
+    // cbi(TCCR0A, COM0B0);
+  } else
+#endif
 
-  #if CORE_PWM_COUNT >= 3
-    if ( pin == CORE_PWM2_PIN )
-    {
-      Pwm2_SetCompareOutputMode( Pwm2_Disconnected );
-    }
-    else
-  #endif
+// Timer1
+#if defined(TCCR1) && defined(COM1A1)
+  if (timer == TIMER1A) {
+    TCCR1 &= ~(1 << COM1A1);
+    // cbi(TCCR1, COM1A0);
+  } else
+#endif
 
-  #if CORE_PWM_COUNT >= 4
-    if ( pin == CORE_PWM3_PIN )
-    {
-      Pwm3_SetCompareOutputMode( Pwm3_Disconnected );
-    }
-    else
-  #endif
+#if defined(TCCR1) && defined(COM1B1)
+  if (timer == TIMER1B) {
+    GTCCR &= ~(1 << COM1B1);
+    // cbi(GTCCR, COM1B1);
+  } else
+#endif
 
-  #if CORE_PWM_COUNT >= 5
-  #error Only 4 PWM pins are supported.  Add more conditions.
-  #endif
+#if defined(TCCR1A) && defined(COM1A1) // Civilized parts
+  if (timer == TIMER1A) {
+    TCCR1A &= ~(1 << COM1A1);
+    // cbi(TCCR1A, COM1A0);
+  } else
+#endif
 
-    {
-    }
-
+#if defined(TCCR1A) && defined(COM1B1) // Civilized parts
+  if (timer == TIMER1B) {
+    TCCR1A &= ~(1 << COM1B1);
+    // cbi(TCCR1A, COM1B0);
+  } else
+#endif
+  {
+    // Dummy block to fill in the else statement
+  }
 }
 
 void digitalWrite(uint8_t pin, uint8_t val)
 {
-	uint8_t bit = digitalPinToBitMask(pin);
-	uint8_t port = digitalPinToPort(pin);
-	volatile uint8_t *out;
+  if (pin & 128) {
+    pin = analogInputToDigitalPin((pin & 127));
+  }
 
-	if (port == NOT_A_PIN) return;
+  uint8_t timer = digitalPinToTimer(pin);
+  uint8_t bit = digitalPinToBitMask(pin);
+  uint8_t port = digitalPinToPort(pin);
 
-	// If the pin that support PWM output, we need to turn it off
-	// before doing a digital write.
-  turnOffPWM( pin );
+  volatile uint8_t *out;
 
-	out = portOutputRegister(port);
+  if (port == NOT_A_PIN)
+    return;
 
-	if (val == LOW) {
-		uint8_t oldSREG = SREG;
+  // If the pin that support PWM output, we need to turn it off
+  // before doing a digital write.
+  if (timer != NOT_ON_TIMER)
+    turnOffPWM(timer);
+
+  out = portOutputRegister(port);
+
+  if (val == LOW) {
+    uint8_t oldSREG = SREG;
     cli();
-		*out &= ~bit;
-		SREG = oldSREG;
-	} else {
-		uint8_t oldSREG = SREG;
+    *out &= ~bit;
+    SREG = oldSREG;
+  } else {
+    uint8_t oldSREG = SREG;
     cli();
-		*out |= bit;
-		SREG = oldSREG;
-	}
+    *out |= bit;
+    SREG = oldSREG;
+  }
 }
 
 int digitalRead(uint8_t pin)
 {
-	uint8_t bit = digitalPinToBitMask(pin);
-	uint8_t port = digitalPinToPort(pin);
+  if (pin & 128) {
+    pin = analogInputToDigitalPin((pin & 127));
+  }
 
-	if (port == NOT_A_PIN) return LOW;
+  uint8_t bit = digitalPinToBitMask(pin);
+  uint8_t port = digitalPinToPort(pin);
 
-	// If the pin that support PWM output, we need to turn it off
-	// before getting a digital reading.
-  turnOffPWM( pin );
+  if (port == NOT_A_PIN)
+    return LOW;
 
-	if (*portInputRegister(port) & bit) return HIGH;
-	return LOW;
+  // There is no need to turn off PWM on a pin before doing digitalRead().
+  // "read" should *NEVER* change the behavior of the thing you're using it on.
+  // That's why it's called "read" not "write". As an added bonus, sets the
+  // stage for auto-fast-digitalRead() for compile time known pins.
+  // uint8_t timer = digitalPinToTimer(pin);
+  // if (timer != NOT_ON_TIMER) turnOffPWM(timer);
+
+  if (*portInputRegister(port) & bit)
+    return HIGH;
+
+  return LOW;
 }

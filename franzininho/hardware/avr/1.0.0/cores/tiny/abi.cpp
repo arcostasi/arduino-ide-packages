@@ -16,14 +16,21 @@
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef NEW_H
-#define NEW_H
-
 #include <stdlib.h>
 
-void *operator new(size_t size);
-void *operator new[](size_t size);
-void operator delete(void *ptr);
-void operator delete[](void *ptr);
+extern "C" void __cxa_pure_virtual(void) __attribute__((weak, __noreturn__));
+extern "C" void __cxa_deleted_virtual(void) __attribute__((weak, __noreturn__));
 
-#endif
+void __cxa_pure_virtual(void)
+{
+    // We might want to write some diagnostics to uart in this case
+    //std::terminate();
+    abort();
+}
+
+void __cxa_deleted_virtual(void)
+{
+    // We might want to write some diagnostics to uart in this case
+    //std::terminate();
+    abort();
+}

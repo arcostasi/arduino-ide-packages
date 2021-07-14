@@ -3,12 +3,12 @@ Arduino IDE Packages
 
 This package adds support for the Franzininho DIY which uses the Atmel AVR ATtiny85 microcontroller to the Arduino IDE 1.8.x and 2.x.
 
-This package uses parts of [Digistump AVR core](https://github.com/digistump/DigistumpArduino) and a tiny8 variant of [ATtiny](https://github.com/damellis/attiny).
+This package uses parts of [ATTinyCore](https://github.com/SpenceKonde/ATTinyCore) and a tiny8 variant of [ATtiny](https://github.com/damellis/attiny).
 
 The following board are supported:
 
-- Franzininho DIY (ATtiny 85)
-- Franzininho DIY ([PICSimLab](https://github.com/lcgamboa/picsimlab))
+- Franzininho (ATtiny 85)
+- Franzininho ([PICSimLab](https://github.com/lcgamboa/picsimlab))
 
 ### Installation
 

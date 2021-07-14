@@ -25,13 +25,13 @@
 #include <string.h>
 #include <inttypes.h>
 
-#include "core_build_options.h"
-#include "wiring.h"
+#include "Arduino.h"
 #include "wiring_private.h"
 
 // this next line disables the entire HardwareSerial.cpp,
 // this is so I can support Attiny series and any other chip without a uart
-#if defined(UBRRH) || defined(UBRR0H) || defined(UBRR1H) || defined(UBRR2H) || defined(UBRR3H)
+// (If DISABLE_UART is set, HW serial is disabled, skipping this file and freeing up memory.)
+#if (defined(UBRRH) || defined(UBRR0H) || defined(UBRR1H) || defined(LINBRRH)) && !USE_SOFTWARE_SERIAL && !DISABLE_UART
 
 #include "HardwareSerial.h"
 
@@ -40,164 +40,224 @@
 // location to which to write the next incoming character and rx_buffer_tail
 // is the index of the location from which to read.
 #if (RAMEND < 1000)
-  #define RX_BUFFER_SIZE 32
+#define SERIAL_BUFFER_SIZE 16
 #else
-  #define RX_BUFFER_SIZE 128
+#define SERIAL_BUFFER_SIZE 64
 #endif
 
-struct ring_buffer
-{
-  unsigned char buffer[RX_BUFFER_SIZE];
-  int head;
-  int tail;
+struct ring_buffer {
+    unsigned char buffer[SERIAL_BUFFER_SIZE];
+    byte head;
+    byte tail;
 };
 
-#if defined(UBRRH) || defined(UBRR0H)
-  ring_buffer rx_buffer  =  { { 0 }, 0, 0 };
+#if defined(UBRRH) || defined(UBRR0H) || defined(LINCR)
+ring_buffer rx_buffer = {{0}, 0, 0};
+ring_buffer tx_buffer = {{0}, 0, 0};
 #endif
 #if defined(UBRR1H)
-  ring_buffer rx_buffer1  =  { { 0 }, 0, 0 };
-#endif
-#if defined(UBRR2H)
-  ring_buffer rx_buffer2  =  { { 0 }, 0, 0 };
-#endif
-#if defined(UBRR3H)
-  ring_buffer rx_buffer3  =  { { 0 }, 0, 0 };
+ring_buffer rx_buffer1 = {{0}, 0, 0};
+ring_buffer tx_buffer1 = {{0}, 0, 0};
 #endif
 
-inline void store_char(unsigned char c, ring_buffer *rx_buffer)
+inline void store_char(unsigned char c, ring_buffer *buffer)
 {
-  int i = (unsigned int)(rx_buffer->head + 1) % RX_BUFFER_SIZE;
+    byte i = (buffer->head + 1) % SERIAL_BUFFER_SIZE;
 
-  // if we should be storing the received character into the location
-  // just before the tail (meaning that the head would advance to the
-  // current location of the tail), we're about to overflow the buffer
-  // and so we don't write the character or advance the head.
-  if (i != rx_buffer->tail) {
-    rx_buffer->buffer[rx_buffer->head] = c;
-    rx_buffer->head = i;
-  }
+    // if we should be storing the received character into the location
+    // just before the tail (meaning that the head would advance to the
+    // current location of the tail), we're about to overflow the buffer
+    // and so we don't write the character or advance the head.
+    if (i != buffer->tail) {
+        buffer->buffer[buffer->head] = c;
+        buffer->head = i;
+    }
 }
 
 #if defined(USART_RX_vect)
-  SIGNAL(USART_RX_vect)
-  {
-  #if defined(UDR0)
-    unsigned char c  =  UDR0;
-  #elif defined(UDR)
-    unsigned char c  =  UDR;  //  atmega8535
-  #else
-    #error UDR not defined
-  #endif
-    store_char(c, &rx_buffer);
-  }
-#elif defined(SIG_USART0_RECV) && defined(UDR0)
-  SIGNAL(SIG_USART0_RECV)
-  {
-    unsigned char c  =  UDR0;
-    store_char(c, &rx_buffer);
-  }
-#elif defined(SIG_UART0_RECV) && defined(UDR0)
-  SIGNAL(SIG_UART0_RECV)
-  {
-    unsigned char c  =  UDR0;
-    store_char(c, &rx_buffer);
-  }
-//#elif defined(SIG_USART_RECV)
-#elif defined(USART0_RX_vect)
-  // fixed by Mark Sproul this is on the 644/644p
-  //SIGNAL(SIG_USART_RECV)
-  SIGNAL(USART0_RX_vect)
-  {
-  #if defined(UDR0)
-    unsigned char c  =  UDR0;
-  #elif defined(UDR)
-    unsigned char c  =  UDR;  //  atmega8, atmega32
-  #else
-    #error UDR not defined
-  #endif
-    store_char(c, &rx_buffer);
-  }
-#elif defined(SIG_UART_RECV)
-  // this is for atmega8
-  SIGNAL(SIG_UART_RECV)
-  {
-  #if defined(UDR0)
-    unsigned char c  =  UDR0;  //  atmega645
-  #elif defined(UDR)
-    unsigned char c  =  UDR;  //  atmega8
-  #endif
-    store_char(c, &rx_buffer);
-  }
-#elif defined(USBCON)
-  #warning No interrupt handler for usart 0
-  #warning Serial(0) is on USB interface
+ISR(USART_RX_vect)
+{
+#if defined(UDR)
+    unsigned char c = UDR;
+#elif defined(UDR0)
+    unsigned char c = UDR0; //  atmega8535
 #else
-  #error No interrupt handler for usart 0
+#error UDR not defined
+#endif
+    store_char(c, &rx_buffer);
+}
+#elif defined(USART0_RX_vect)
+ISR(USART0_RX_vect)
+{
+#if defined(UDR)
+    unsigned char c = UDR;
+#elif defined(UDR0)
+    unsigned char c = UDR0; //  atmega8535
+#else
+#error UDR not defined
+#endif
+    store_char(c, &rx_buffer);
+}
+#elif defined(UART_RX_vect)
+ISR(UART_RX_vect)
+{
+#if defined(UDR)
+    unsigned char c = UDR;
+#elif defined(UDR0)
+    unsigned char c = UDR0; //  atmega8535
+#else
+#error UDR not defined
+#endif
+    store_char(c, &rx_buffer);
+}
+#elif defined(UART0_RX_vect)
+ISR(UART0_RX_vect)
+{
+#if defined(UDR)
+    unsigned char c = UDR;
+#elif defined(UDR0)
+    unsigned char c = UDR0; //  atmega8535
+#else
+#error UDR not defined
+#endif
+    store_char(c, &rx_buffer);
+}
+#elif defined(LIN_TC_vect)
+// this is for attinyX7
+ISR(LIN_TC_vect)
+{
+    if (LINSIR & _BV(LRXOK)) {
+        unsigned char c = LINDAT;
+        store_char(c, &rx_buffer);
+    }
+    if (LINSIR & _BV(LTXOK)) {
+        //PINA |= _BV(PINA5); //debug
+        if (tx_buffer.head == tx_buffer.tail) {
+            // Buffer empty, so disable interrupts
+            cbi(LINENIR, LENTXOK);
+        } else {
+            // There is more data in the output buffer. Send the next byte
+            unsigned char c = tx_buffer.buffer[tx_buffer.tail];
+            tx_buffer.tail = (tx_buffer.tail + 1) % SERIAL_BUFFER_SIZE;
+
+            LINDAT = c;
+        }
+    }
+}
+#else
+#error No interrupt handler for usart 0
 #endif
 
 //#if defined(SIG_USART1_RECV)
 #if defined(USART1_RX_vect)
-  //SIGNAL(SIG_USART1_RECV)
-  SIGNAL(USART1_RX_vect)
-  {
+ISR(USART1_RX_vect)
+{
     unsigned char c = UDR1;
     store_char(c, &rx_buffer1);
-  }
-#elif defined(SIG_USART1_RECV)
-  #error SIG_USART1_RECV
+}
+#elif defined(USART1_RXC_vect)
+ISR(USART1_RXC_vect)
+{
+    unsigned char c = UDR1;
+    store_char(c, &rx_buffer1);
+}
+#else
+//no UART1
 #endif
 
-#if defined(USART2_RX_vect) && defined(UDR2)
-  SIGNAL(USART2_RX_vect)
-  {
-    unsigned char c = UDR2;
-    store_char(c, &rx_buffer2);
-  }
-#elif defined(SIG_USART2_RECV)
-  #error SIG_USART2_RECV
+#if !defined(UART0_UDRE_vect) && !defined(UART_UDRE_vect) && !defined(USART0_UDRE_vect) && !defined(USART_UDRE_vect) && !defined(LIN_TC_vect)
+#error "Don't know what the Data Register Empty vector is called for the first UART"
+#else
+#if defined(UART0_UDRE_vect)
+ISR(UART0_UDRE_vect)
+#elif defined(UART_UDRE_vect)
+ISR(UART_UDRE_vect)
+#elif defined(USART0_UDRE_vect)
+ISR(USART0_UDRE_vect)
+#elif defined(USART_UDRE_vect)
+ISR(USART_UDRE_vect)
+#endif
+#if !defined(LIN_TC_vect)
+{
+    if (tx_buffer.head == tx_buffer.tail) {
+        // Buffer empty, so disable interrupts
+#if defined(UCSR0B)
+        cbi(UCSR0B, UDRIE0);
+#else
+        cbi(UCSRB, UDRIE);
+#endif
+    } else {
+        // There is more data in the output buffer. Send the next byte
+        unsigned char c = tx_buffer.buffer[tx_buffer.tail];
+        tx_buffer.tail = (tx_buffer.tail + 1) % SERIAL_BUFFER_SIZE;
+
+#if defined(UDR)
+        UDR = c;
+#elif defined(UDR0)
+        UDR0 = c;
+#else
+#error UDR not defined
+#endif
+    }
+}
+#endif
 #endif
 
-#if defined(USART3_RX_vect) && defined(UDR3)
-  SIGNAL(USART3_RX_vect)
-  {
-    unsigned char c = UDR3;
-    store_char(c, &rx_buffer3);
-  }
-#elif defined(SIG_USART3_RECV)
-  #error SIG_USART3_RECV
+#ifdef USART1_UDRE_vect
+ISR(USART1_UDRE_vect)
+{
+    if (tx_buffer1.head == tx_buffer1.tail) {
+        // Buffer empty, so disable interrupts
+        cbi(UCSR1B, UDRIE1);
+    } else {
+        // There is more data in the output buffer. Send the next byte
+        unsigned char c = tx_buffer1.buffer[tx_buffer1.tail];
+        tx_buffer1.tail = (tx_buffer1.tail + 1) % SERIAL_BUFFER_SIZE;
+
+        UDR1 = c;
+    }
+}
 #endif
-
-
 
 // Constructors ////////////////////////////////////////////////////////////////
 
-HardwareSerial::HardwareSerial(ring_buffer *rx_buffer,
-  volatile uint8_t *ubrrh, volatile uint8_t *ubrrl,
-  volatile uint8_t *ucsra, volatile uint8_t *ucsrb,
-  volatile uint8_t *udr,
-  uint8_t rxen, uint8_t txen, uint8_t rxcie, uint8_t udre, uint8_t u2x)
+HardwareSerial::HardwareSerial(ring_buffer *rx_buffer, ring_buffer *tx_buffer
+#if (defined(UBRRH) || defined(UBRR0H) || defined(UBRR1H))
+                               ,
+                               volatile uint8_t *ubrrh, volatile uint8_t *ubrrl,
+                               volatile uint8_t *ucsra, volatile uint8_t *ucsrb,
+                               volatile uint8_t *udr,
+                               uint8_t rxen, uint8_t txen, uint8_t rxcie, uint8_t udrie, uint8_t u2x)
 {
-  _rx_buffer = rx_buffer;
-  _ubrrh = ubrrh;
-  _ubrrl = ubrrl;
-  _ucsra = ucsra;
-  _ucsrb = ucsrb;
-  _udr = udr;
-  _rxen = rxen;
-  _txen = txen;
-  _rxcie = rxcie;
-  _udre = udre;
-  _u2x = u2x;
+    _rx_buffer = rx_buffer;
+    _tx_buffer = tx_buffer;
+    _ubrrh = ubrrh;
+    _ubrrl = ubrrl;
+    _ucsra = ucsra;
+    _ucsrb = ucsrb;
+    _udr = udr;
+    _rxen = rxen;
+    _txen = txen;
+    _rxcie = rxcie;
+    _udrie = udrie;
+    _u2x = u2x;
 }
+#else
+)
+{
+    _rx_buffer = rx_buffer;
+    _tx_buffer = tx_buffer;
+}
+#endif
 
 // Public Methods //////////////////////////////////////////////////////////////
 
 void HardwareSerial::begin(long baud)
 {
-  uint16_t baud_setting;
-  bool use_u2x = true;
-
+#if (defined(UBRRH) || defined(UBRR0H) || defined(UBRR1H))
+    uint16_t baud_setting;
+    bool use_u2x = true;
+/*
 #if F_CPU == 16000000UL
   // hardcoded exception for compatibility with the bootloader shipped
   // with the Duemilanove and previous boards and the firmware on the 8U2
@@ -206,103 +266,139 @@ void HardwareSerial::begin(long baud)
     use_u2x = false;
   }
 #endif
+*/
+try_again:
 
-  if (use_u2x) {
-    *_ucsra = 1 << _u2x;
-    baud_setting = (F_CPU / 4 / baud - 1) / 2;
-  } else {
-    *_ucsra = 0;
-    baud_setting = (F_CPU / 8 / baud - 1) / 2;
-  }
+    if (use_u2x) {
+        *_ucsra = 1 << _u2x;
+        baud_setting = (F_CPU / 4 / baud - 1) / 2;
+    } else {
+        *_ucsra = 0;
+        baud_setting = (F_CPU / 8 / baud - 1) / 2;
+    }
 
-  // assign the baud_setting, a.k.a. ubbr (USART Baud Rate Register)
-  *_ubrrh = baud_setting >> 8;
-  *_ubrrl = baud_setting;
+    if ((baud_setting > 4095) && use_u2x) {
+        use_u2x = false;
+        goto try_again;
+    }
 
-  sbi(*_ucsrb, _rxen);
-  sbi(*_ucsrb, _txen);
-  sbi(*_ucsrb, _rxcie);
+    // assign the baud_setting, a.k.a. ubbr (USART Baud Rate Register)
+    *_ubrrh = baud_setting >> 8;
+    *_ubrrl = baud_setting;
+
+    sbi(*_ucsrb, _rxen);
+    sbi(*_ucsrb, _txen);
+    sbi(*_ucsrb, _rxcie);
+    cbi(*_ucsrb, _udrie);
+#else
+    LINCR = (1 << LSWRES);
+    LINBRR = (((F_CPU * 10L / 16L / baud) + 5L) / 10L) - 1;
+    LINBTR = (1 << LDISR) | (16 << LBT0);
+    LINCR = _BV(LENA) | _BV(LCMD2) | _BV(LCMD1) | _BV(LCMD0);
+    sbi(LINENIR, LENRXOK);
+#endif
 }
 
 void HardwareSerial::end()
 {
-  cbi(*_ucsrb, _rxen);
-  cbi(*_ucsrb, _txen);
-  cbi(*_ucsrb, _rxcie);
+    while (_tx_buffer->head != _tx_buffer->tail)
+        ;
+#if (defined(UBRRH) || defined(UBRR0H) || defined(UBRR1H))
+    cbi(*_ucsrb, _rxen);
+    cbi(*_ucsrb, _txen);
+    cbi(*_ucsrb, _rxcie);
+    cbi(*_ucsrb, _udrie);
+#else
+    cbi(LINENIR, LENTXOK);
+    cbi(LINENIR, LENRXOK);
+    cbi(LINCR, LENA);
+    cbi(LINCR, LCMD0);
+    cbi(LINCR, LCMD1);
+    cbi(LINCR, LCMD2);
+#endif
+
+    _rx_buffer->head = _rx_buffer->tail;
 }
 
 int HardwareSerial::available(void)
 {
-  return (unsigned int)(RX_BUFFER_SIZE + _rx_buffer->head - _rx_buffer->tail) % RX_BUFFER_SIZE;
+    return (unsigned int)(SERIAL_BUFFER_SIZE + _rx_buffer->head - _rx_buffer->tail) % SERIAL_BUFFER_SIZE;
 }
 
 int HardwareSerial::peek(void)
 {
-  if (_rx_buffer->head == _rx_buffer->tail) {
-    return -1;
-  } else {
-    return _rx_buffer->buffer[_rx_buffer->tail];
-  }
+    if (_rx_buffer->head == _rx_buffer->tail) {
+        return -1;
+    } else {
+        return _rx_buffer->buffer[_rx_buffer->tail];
+    }
 }
 
 int HardwareSerial::read(void)
 {
-  // if the head isn't ahead of the tail, we don't have any characters
-  if (_rx_buffer->head == _rx_buffer->tail) {
-    return -1;
-  } else {
-    unsigned char c = _rx_buffer->buffer[_rx_buffer->tail];
-    _rx_buffer->tail = (unsigned int)(_rx_buffer->tail + 1) % RX_BUFFER_SIZE;
-    return c;
-  }
+    // if the head isn't ahead of the tail, we don't have any characters
+    if (_rx_buffer->head == _rx_buffer->tail) {
+        return -1;
+    } else {
+        unsigned char c = _rx_buffer->buffer[_rx_buffer->tail];
+        _rx_buffer->tail = (_rx_buffer->tail + 1) % SERIAL_BUFFER_SIZE;
+        return c;
+    }
 }
 
 void HardwareSerial::flush()
 {
-  // don't reverse this or there may be problems if the RX interrupt
-  // occurs after reading the value of rx_buffer_head but before writing
-  // the value to rx_buffer_tail; the previous value of rx_buffer_head
-  // may be written to rx_buffer_tail, making it appear as if the buffer
-  // don't reverse this or there may be problems if the RX interrupt
-  // occurs after reading the value of rx_buffer_head but before writing
-  // the value to rx_buffer_tail; the previous value of rx_buffer_head
-  // may be written to rx_buffer_tail, making it appear as if the buffer
-  // were full, not empty.
-  _rx_buffer->head = _rx_buffer->tail;
+    while (_tx_buffer->head != _tx_buffer->tail)
+        ;
 }
 
 size_t HardwareSerial::write(uint8_t c)
 {
-  while (!((*_ucsra) & (1 << _udre)))
-    ;
+    byte i = (_tx_buffer->head + 1) % SERIAL_BUFFER_SIZE;
 
-  *_udr = c;
+    // If the output buffer is full, there's nothing for it other than to
+    // wait for the interrupt handler to empty it a bit
+    // ???: return 0 here instead?
+    while (i == _tx_buffer->tail)
+        ;
 
-  return( 1 );
+    _tx_buffer->buffer[_tx_buffer->head] = c;
+    _tx_buffer->head = i;
+
+#if (defined(UBRRH) || defined(UBRR0H) || defined(UBRR1H))
+    sbi(*_ucsrb, _udrie);
+#else
+    if (!(LINENIR & _BV(LENTXOK))) {
+        //The buffer was previously empty, so enable TX Complete interrupt and load first byte.
+        sbi(LINENIR, LENTXOK);
+        unsigned char c = tx_buffer.buffer[tx_buffer.tail];
+        tx_buffer.tail = (tx_buffer.tail + 1) % SERIAL_BUFFER_SIZE;
+        LINDAT = c;
+    }
+#endif
+
+    return 1;
+}
+
+HardwareSerial::operator bool()
+{
+    return true;
 }
 
 // Preinstantiate Objects //////////////////////////////////////////////////////
 
-#if ! DEFAULT_TO_TINY_DEBUG_SERIAL
-  #if defined(UBRRH) && defined(UBRRL)
-    HardwareSerial Serial(&rx_buffer, &UBRRH, &UBRRL, &UCSRA, &UCSRB, &UDR, RXEN, TXEN, RXCIE, UDRE, U2X);
-  #elif defined(UBRR0H) && defined(UBRR0L)
-    HardwareSerial Serial(&rx_buffer, &UBRR0H, &UBRR0L, &UCSR0A, &UCSR0B, &UDR0, RXEN0, TXEN0, RXCIE0, UDRE0, U2X0);
-  #elif defined(USBCON)
-    #warning no serial port defined  (port 0)
-  #else
-    #error no serial port defined  (port 0)
-  #endif
+#if defined(UBRRH) && defined(UBRRL)
+HardwareSerial Serial(&rx_buffer, &tx_buffer, &UBRRH, &UBRRL, &UCSRA, &UCSRB, &UDR, RXEN, TXEN, RXCIE, UDRE, U2X);
+#elif defined(UBRR0H) && defined(UBRR0L)
+HardwareSerial Serial(&rx_buffer, &tx_buffer, &UBRR0H, &UBRR0L, &UCSR0A, &UCSR0B, &UDR0, RXEN0, TXEN0, RXCIE0, UDRE0, U2X0);
+#elif defined(LINBRRH)
+  HardwareSerial Serial(&rx_buffer, &tx_buffer);
 #endif
 
 #if defined(UBRR1H)
-  HardwareSerial Serial1(&rx_buffer1, &UBRR1H, &UBRR1L, &UCSR1A, &UCSR1B, &UDR1, RXEN1, TXEN1, RXCIE1, UDRE1, U2X1);
-#endif
-#if defined(UBRR2H)
-  HardwareSerial Serial2(&rx_buffer2, &UBRR2H, &UBRR2L, &UCSR2A, &UCSR2B, &UDR2, RXEN2, TXEN2, RXCIE2, UDRE2, U2X2);
-#endif
-#if defined(UBRR3H)
-  HardwareSerial Serial3(&rx_buffer3, &UBRR3H, &UBRR3L, &UCSR3A, &UCSR3B, &UDR3, RXEN3, TXEN3, RXCIE3, UDRE3, U2X3);
+HardwareSerial Serial1(&rx_buffer1, &tx_buffer1, &UBRR1H, &UBRR1L, &UCSR1A, &UCSR1B, &UDR1, RXEN1, TXEN1, RXCIE1, UDRE1, U2X1);
 #endif
 
+#elif !USE_SOFTWARE_SERIAL
+#warning There is no Hardware UART, and Software Serial is not enabled. There will be no serial port.
 #endif // whole file
